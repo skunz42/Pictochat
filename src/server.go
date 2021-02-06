@@ -6,17 +6,19 @@ import (
     "net"
     "bufio"
     "sync"
+    "strings"
 )
 
 type connection struct {
     address string
     port string
     udp_or_tcp string
+    username string
 }
 
 type client_connections struct {
-    inputs []net.Conn
-    receivers []net.Conn
+    inputs map[string]net.Conn
+    receivers map[string]net.Conn
 }
 
 var (
@@ -43,29 +45,67 @@ func make_connection(port string) *connection {
     return &c
 }
 
-func handle_message(conn net.Conn, user_connection *connection) {
+func make_user_connection(conn net.Conn) *connection {
+    c := connection{}
+    ipport := conn.RemoteAddr().String()
+    ipportarr := strings.Split(ipport, ":")
+    c.address = ipportarr[0]
+    c.port = ipportarr[1]
+    c.udp_or_tcp = "tcp"
+    return &c
+}
+
+func parse_username(message string) string {
+    arr := strings.Split(message, ":")
+    return arr[1]
+}
+
+func parse_user_connection(message string) *connection {
+    arr := strings.Split(message, ":")
+    c := connection{}
+    c.address = arr[2]
+    c.port = arr[3]
+    c.udp_or_tcp = "tcp"
+    c.username = arr[1]
+    return &c
+}
+
+func handle_message(conn net.Conn) {
+
+    user_connection := make_user_connection(conn)
+
     buffer, _ := bufio.NewReader(conn).ReadBytes('\n')
 
-    if string(buffer) == "INPUT\n" {
-        cli_conns.inputs = append(cli_conns.inputs, conn)
-    } else if string(buffer) == "RECV\n" {
-        cli_conns.receivers = append(cli_conns.receivers, conn)
-    }
+    if string(string(buffer)[0]) == "I" {
+        user_connection.username = parse_username(string(buffer))
+        cli_conns.inputs[user_connection.username] = conn
+        fmt.Println("Now Entering:", user_connection.username)
+        for {
+            buffer, err := bufio.NewReader(conn).ReadBytes('\n')
 
-    fmt.Println("INPUTS:", len(cli_conns.inputs))
-    fmt.Println("RECVS:", len(cli_conns.receivers))
-
-    for {
-        buffer, err := bufio.NewReader(conn).ReadBytes('\n')
-
-        if err != nil {
-            fmt.Println("Client left")
-            conn.Close()
-            return
+            if err != nil {
+                fmt.Println("Goodbye,", user_connection.username)
+                delete(cli_conns.inputs, user_connection.username)
+                //delete(cli_conns.receivers, user_connection.username)
+                conn.Close()
+                return
+            } else if string(buffer) == ":list\n" {
+                fmt.Println("Users online:")
+                for k := range cli_conns.inputs {
+                    fmt.Println(k)
+                }
+            } else {
+                fmt.Println("Message Received:", string(buffer))
+            }
         }
-
-        fmt.Println("Message Received:", string(buffer))
+    } else if string(string(buffer)[0]) == "R" {
+        user_connection.username = parse_username(string(buffer))
+        cli_conns.receivers[user_connection.username] = conn
     }
+
+    /*fmt.Println("INPUTS:", len(cli_conns.inputs))
+    fmt.Println("RECVS:", len(cli_conns.receivers))*/
+
 }
 
 func start_server(my_conn *connection) {
@@ -84,8 +124,7 @@ func start_server(my_conn *connection) {
             return
         }
 
-        fmt.Println("Now Entering:", conn_obj.RemoteAddr().String())
-        go handle_message(conn_obj, my_conn)
+        go handle_message(conn_obj)
     }
 }
 
@@ -96,6 +135,8 @@ func main() {
     }
 
     port := os.Args[1]
+    cli_conns.inputs = make(map[string]net.Conn)
+    cli_conns.receivers = make(map[string]net.Conn)
 
     conn := make_connection(port)
     start_server(conn)

@@ -12,13 +12,15 @@ type connection struct {
     address string
     port string
     udp_or_tcp string
+    username string
 }
 
-func make_connection(port string, ipaddr string) *connection {
+func make_connection(port string, ipaddr string, username string) *connection {
     c := connection{}
     c.address = ipaddr
     c.port = port
     c.udp_or_tcp = "tcp"
+    c.username = username
     return &c
 }
 
@@ -30,7 +32,7 @@ func connect_to_server(my_conn *connection) {
     }
 
     fmt.Println("Sending initial message")
-    fmt.Fprintf(conn_obj, "INPUT" + "\n")
+    fmt.Fprintf(conn_obj, "INPUT" + ":" + my_conn.username + "\n")
     fmt.Println("Connected to the server successfully!")
 
     for {
@@ -49,12 +51,13 @@ func main() {
     c := exec.Command("clear")
     c.Stdout = os.Stdout
     c.Run()
-    if len(os.Args) != 3 {
-        fmt.Println("Enter in the form ./client <server port> <server ip>")
+    if len(os.Args) != 4 {
+        fmt.Println("Enter in the form ./client <server port> <server ip> <username>")
         os.Exit(1)
     }
     port := os.Args[1]
     ipaddr := os.Args[2]
-    conn := make_connection(port, ipaddr)
+    username := os.Args[3]
+    conn := make_connection(port, ipaddr, username)
     connect_to_server(conn)
 }
