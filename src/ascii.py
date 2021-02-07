@@ -31,15 +31,16 @@ def generate_ascii(path):
     new_image = [pixel_arr[i:i+120] for i in range(0, len_pixel_arr, 120)]
     return '\n'.join(new_image)
 
-def print_file(text):
-    f = open("./assets/yeet.txt", "w")
+def print_file(text, path):
+    print(path[:-4])
+    f = open(path[:-4] + ".txt", "w")
     for l in text:
         f.write(l)
     f.close()
 
 def main():
-    path = "./assets/screenshot.jpg"
+    path = sys.argv[1]
     new_image = generate_ascii(path)
-    print_file(new_image)
+    print_file(new_image, path)
 
 main()

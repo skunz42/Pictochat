@@ -3,7 +3,6 @@ package main;
 import (
     "fmt"
     "os"
-    "os/exec"
     "net"
     "bufio"
     "sync"
@@ -23,6 +22,7 @@ type client_connections struct {
     receivers map[string]string
     num_messages uint64
     active_message string
+    active_user string
 }
 
 var (
@@ -89,7 +89,6 @@ func handle_message(conn net.Conn) {
         cli_conns.active_message = "Now entering: " + user_connection.username + "\n"
         mu.Unlock()
         for {
-            fmt.Println("Hang?")
             buffer, err := bufio.NewReader(conn).ReadBytes('\n')
 
             if err != nil || string(buffer) == ":quit\n" {
@@ -109,12 +108,12 @@ func handle_message(conn net.Conn) {
                 fmt.Println("Users online:")
                 cli_conns.num_messages += 1
                 cli_conns.active_message = "Users online: "
-                for k := range cli_conns.inputs {
+                for k := range cli_conns.receivers {
                     fmt.Println(k)
-                    cli_conns.active_message += (k[:len(k)-1] + ", ")
+                    cli_conns.active_message += (k + ", ")
                 }
                 cli_conns.active_message += "("
-                cli_conns.active_message += strconv.Itoa(len(cli_conns.inputs))
+                cli_conns.active_message += strconv.Itoa(len(cli_conns.receivers))
                 cli_conns.active_message += "/8)\n"
                 mu.Unlock()
             } else if string(buffer) == ":quit\n" {
@@ -135,6 +134,7 @@ func handle_message(conn net.Conn) {
                 mu.Lock()
                 cli_conns.num_messages += 1
                 cli_conns.active_message = string(buffer)
+                cli_conns.active_user = user_connection.username
                 mu.Unlock()
             }
         }
@@ -198,12 +198,16 @@ func start_client() {
                     os.Exit(1)
                 }
 
-                if cli_conns.active_message == ":draw\n" {
-                    c := exec.Command("python3", "./src/ascii.py", "./assets/screenshot.jpg")
-                    c.Stdout = os.Stdout
-                    c.Run()
+                fmt.Println(k)
 
-                    file, err := os.Open("./assets/yeet.txt")
+                if len(cli_conns.active_message) > 6 && cli_conns.active_message[:5] == ":draw" {
+                    drawing_name := cli_conns.active_message[6:len(cli_conns.active_message)-1]
+                    //c := exec.Command("python3", "./src/ascii.py", "./assets/" + drawing_name + ".jpg")
+                    //c.Stdout = os.Stdout
+                    //c.Run()
+
+                    fmt.Println(drawing_name + ".txt")
+                    file, err := os.Open("./assets/" + drawing_name + ".txt")
                     if err != nil {
                         fmt.Println("Cannot find file")
                         break
@@ -229,7 +233,11 @@ func start_client() {
                     }
                     //fmt.Fprintf(temp_conn, "drawing lmao\n")
                 } else {
-                    fmt.Fprintf(temp_conn, "<" + k + ">: " + cli_conns.active_message + "\n")
+                    if len(cli_conns.active_user) > 0 {
+                        fmt.Fprintf(temp_conn, "<" + cli_conns.active_user[:len(cli_conns.active_user)-1] + ">: " + cli_conns.active_message + "\n")
+                    } else {
+                        fmt.Fprintf(temp_conn, cli_conns.active_message + "\n")
+                    }
                 }
                 //temp_conn.Close()
             }

@@ -52,7 +52,7 @@ func connect_to_server(my_conn *connection, user_port string) {
 
         if (string(buffer) == ":quit\n") {
             break
-        } else if (string(buffer)[:5] == ":draw") {
+        } else if (len(string(buffer)) > 5 && string(buffer)[:5] == ":draw") {
             temp := string(buffer)[5:]
             //fmt.Print(temp)
             var k int = len(temp)/120
