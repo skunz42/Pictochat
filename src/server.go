@@ -7,6 +7,7 @@ import (
     "bufio"
     "sync"
     "strings"
+    "strconv"
 )
 
 type connection struct {
@@ -18,7 +19,9 @@ type connection struct {
 
 type client_connections struct {
     inputs map[string]net.Conn
-    receivers map[string]net.Conn
+    receivers map[string]string
+    num_messages uint64
+    active_message string
 }
 
 var (
@@ -80,27 +83,55 @@ func handle_message(conn net.Conn) {
         user_connection.username = parse_username(string(buffer))
         cli_conns.inputs[user_connection.username] = conn
         fmt.Println("Now Entering:", user_connection.username)
+        mu.Lock()
+        cli_conns.num_messages += 1
+        cli_conns.active_message = "Now entering: " + user_connection.username + "\n"
+        mu.Unlock()
         for {
             buffer, err := bufio.NewReader(conn).ReadBytes('\n')
 
             if err != nil {
                 fmt.Println("Goodbye,", user_connection.username)
                 delete(cli_conns.inputs, user_connection.username)
-                //delete(cli_conns.receivers, user_connection.username)
+                delete(cli_conns.receivers, user_connection.username)
                 conn.Close()
                 return
             } else if string(buffer) == ":list\n" {
+                mu.Lock()
                 fmt.Println("Users online:")
+                cli_conns.num_messages += 1
+                cli_conns.active_message = "Users online: "
                 for k := range cli_conns.inputs {
                     fmt.Println(k)
+                    cli_conns.active_message += (k[:len(k)-1] + ", ")
                 }
+                cli_conns.active_message += "("
+                cli_conns.active_message += strconv.Itoa(len(cli_conns.inputs))
+                cli_conns.active_message += "/8)\n"
+                mu.Unlock()
+            } else if string(buffer) == ":quit\n" {
+                mu.Lock()
+                cli_conns.num_messages += 1
+                cli_conns.active_message = "Has exited the chat\n"
+                mu.Unlock()
             } else {
                 fmt.Println("Message Received:", string(buffer))
+                /*for k,v := range cli_conns.receivers {
+                    fmt.Fprintf(v, k+" TEST\n")
+                }*/
+                mu.Lock()
+                cli_conns.num_messages += 1
+                cli_conns.active_message = string(buffer)
+                mu.Unlock()
             }
         }
     } else if string(string(buffer)[0]) == "R" {
         user_connection.username = parse_username(string(buffer))
-        cli_conns.receivers[user_connection.username] = conn
+        temp_split := strings.Split(string(buffer), ":")
+        user_ip := temp_split[2]
+        user_port := temp_split[3]
+        user_both := user_ip+":"+user_port
+        cli_conns.receivers[user_connection.username] = user_both[:len(user_both)-1]
     }
 
     /*fmt.Println("INPUTS:", len(cli_conns.inputs))
@@ -128,6 +159,27 @@ func start_server(my_conn *connection) {
     }
 }
 
+func start_client() {
+    size := cli_conns.num_messages
+    for {
+        mu.Lock()
+        if size != cli_conns.num_messages {
+            //fmt.Println("ACTIVE MSG:", cli_conns.active_message)
+            for k,v := range cli_conns.receivers {
+                temp_conn, err := net.Dial("tcp", v)
+                if err != nil {
+                    fmt.Println("Error connecting to recv:", err.Error())
+                    os.Exit(1)
+                }
+                fmt.Fprintf(temp_conn, "<" + k + ">: " + cli_conns.active_message + "\n")
+                temp_conn.Close()
+            }
+        }
+        size = cli_conns.num_messages
+        mu.Unlock()
+    }
+}
+
 func main() {
     if len(os.Args) != 2 {
         fmt.Println("Enter in the form ./server <port>")
@@ -136,8 +188,11 @@ func main() {
 
     port := os.Args[1]
     cli_conns.inputs = make(map[string]net.Conn)
-    cli_conns.receivers = make(map[string]net.Conn)
+    cli_conns.receivers = make(map[string]string)
+    cli_conns.num_messages = 0
 
     conn := make_connection(port)
-    start_server(conn)
+    go start_server(conn)
+    go start_client()
+    select {}
 }
