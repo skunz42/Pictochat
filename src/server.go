@@ -169,17 +169,19 @@ func start_client() {
                 fmt.Println(cli_conns.receivers[cli_conns.active_message[5:]])
                 v := cli_conns.receivers[cli_conns.active_message[5:len(cli_conns.active_message)-1]]
                 temp_conn, err := net.Dial("tcp", v)
+                delete(cli_conns.receivers, v)
                 if err != nil {
                     fmt.Println("Error connecting to recv:", err.Error())
                     os.Exit(1)
                 }
                 fmt.Fprintf(temp_conn, ":quit\n")
                 temp_conn.Close()
+                break
             }
             for k,v := range cli_conns.receivers {
                 temp_conn, err := net.Dial("tcp", v)
                 if err != nil {
-                    fmt.Println("Error connecting to recv:", err.Error())
+                    fmt.Println("Error connecting to recv (loop):", err.Error())
                     os.Exit(1)
                 }
                 fmt.Fprintf(temp_conn, "<" + k + ">: " + cli_conns.active_message + "\n")
