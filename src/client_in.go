@@ -31,17 +31,20 @@ func connect_to_server(my_conn *connection) {
         os.Exit(1)
     }
 
-    fmt.Println("Sending initial message")
+    //fmt.Println("Sending initial message")
     fmt.Fprintf(conn_obj, "INPUT" + ":" + my_conn.username + "\n")
-    fmt.Println("Connected to the server successfully!")
+    //fmt.Println("Connected to the server successfully!")
 
     for {
         reader := bufio.NewReader(os.Stdin)
         fmt.Print("Text to send: ")
         text, _ := reader.ReadString('\n')
         fmt.Fprintf(conn_obj, text + "\n")
+        c := exec.Command("clear")
+        c.Stdout = os.Stdout
+        c.Run()
         if string(text) == ":quit\n" {
-            fmt.Println("quitting lol")
+            //fmt.Println("quitting lol")
             return
         }
     }

@@ -3,6 +3,7 @@ package main
 import (
     "fmt"
     "os"
+    "os/exec"
     "net"
     "bufio"
     "strings"
@@ -35,7 +36,7 @@ func connect_to_server(my_conn * connection, user_port string) {
         os.Exit(1)
     }
 
-    fmt.Println("Sending initial message")
+    //fmt.Println("Sending initial message")
     fmt.Fprintf(conn_obj, "RECEIVER" + ":" + my_conn.username + ":" + local_ip + ":" + user_port + "\n")
 
     l, err := net.Listen("tcp", local_ip+":"+user_port)
@@ -55,11 +56,18 @@ func connect_to_server(my_conn * connection, user_port string) {
 
         buffer, _ := bufio.NewReader(conn_obj).ReadBytes('\n')
 
-        fmt.Println(string(buffer))
+        if (string(buffer) == ":quit\n") {
+            break
+        }
+
+        fmt.Print(string(buffer))
     }
 }
 
 func main() {
+    c := exec.Command("clear")
+    c.Stdout = os.Stdout
+    c.Run()
     if len(os.Args) != 5 {
         fmt.Println("Enter in the form ./client <server port> <server ip address> <username> <user_port>")
         os.Exit(1)

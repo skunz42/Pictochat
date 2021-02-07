@@ -112,7 +112,7 @@ func handle_message(conn net.Conn) {
             } else if string(buffer) == ":quit\n" {
                 mu.Lock()
                 cli_conns.num_messages += 1
-                cli_conns.active_message = "Has exited the chat\n"
+                cli_conns.active_message = ":quit" + user_connection.username
                 mu.Unlock()
             } else {
                 fmt.Println("Message Received:", string(buffer))
@@ -165,6 +165,17 @@ func start_client() {
         mu.Lock()
         if size != cli_conns.num_messages {
             //fmt.Println("ACTIVE MSG:", cli_conns.active_message)
+            if len(cli_conns.active_message) > 5 && cli_conns.active_message[:5] == ":quit" {
+                fmt.Println(cli_conns.receivers[cli_conns.active_message[5:]])
+                v := cli_conns.receivers[cli_conns.active_message[5:len(cli_conns.active_message)-1]]
+                temp_conn, err := net.Dial("tcp", v)
+                if err != nil {
+                    fmt.Println("Error connecting to recv:", err.Error())
+                    os.Exit(1)
+                }
+                fmt.Fprintf(temp_conn, ":quit\n")
+                temp_conn.Close()
+            }
             for k,v := range cli_conns.receivers {
                 temp_conn, err := net.Dial("tcp", v)
                 if err != nil {
