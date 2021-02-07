@@ -3,6 +3,7 @@ package main;
 import (
     "fmt"
     "os"
+    "os/exec"
     "net"
     "bufio"
     "sync"
@@ -18,7 +19,7 @@ type connection struct {
 }
 
 type client_connections struct {
-    inputs map[string]net.Conn
+    inputs map[string]string
     receivers map[string]string
     num_messages uint64
     active_message string
@@ -81,21 +82,28 @@ func handle_message(conn net.Conn) {
 
     if string(string(buffer)[0]) == "I" {
         user_connection.username = parse_username(string(buffer))
-        cli_conns.inputs[user_connection.username] = conn
+        cli_conns.inputs[user_connection.username] = user_connection.address+":"+user_connection.port
         fmt.Println("Now Entering:", user_connection.username)
         mu.Lock()
         cli_conns.num_messages += 1
         cli_conns.active_message = "Now entering: " + user_connection.username + "\n"
         mu.Unlock()
         for {
+            fmt.Println("Hang?")
             buffer, err := bufio.NewReader(conn).ReadBytes('\n')
 
             if err != nil {
                 fmt.Println("Goodbye,", user_connection.username)
+                uc := user_connection.username[:len(user_connection.username)-1]
                 delete(cli_conns.inputs, user_connection.username)
-                delete(cli_conns.receivers, user_connection.username)
+                delete(cli_conns.receivers, uc)
                 conn.Close()
                 return
+            } else if string(buffer) == ":draw\n" {
+                mu.Lock()
+                cli_conns.num_messages += 1
+                cli_conns.active_message = ":draw\n"
+                mu.Unlock()
             } else if string(buffer) == ":list\n" {
                 mu.Lock()
                 fmt.Println("Users online:")
@@ -126,16 +134,15 @@ func handle_message(conn net.Conn) {
             }
         }
     } else if string(string(buffer)[0]) == "R" {
+        fmt.Println("RECV")
         user_connection.username = parse_username(string(buffer))
         temp_split := strings.Split(string(buffer), ":")
         user_ip := temp_split[2]
         user_port := temp_split[3]
         user_both := user_ip+":"+user_port
         cli_conns.receivers[user_connection.username] = user_both[:len(user_both)-1]
+        conn.Close()
     }
-
-    /*fmt.Println("INPUTS:", len(cli_conns.inputs))
-    fmt.Println("RECVS:", len(cli_conns.receivers))*/
 
 }
 
@@ -184,7 +191,40 @@ func start_client() {
                     fmt.Println("Error connecting to recv (loop):", err.Error())
                     os.Exit(1)
                 }
-                fmt.Fprintf(temp_conn, "<" + k + ">: " + cli_conns.active_message + "\n")
+
+                if cli_conns.active_message == ":draw\n" {
+                    c := exec.Command("python3", "./src/ascii.py", "./assets/screenshot.jpg")
+                    c.Stdout = os.Stdout
+                    c.Run()
+
+                    file, err := os.Open("./assets/yeet.txt")
+                    if err != nil {
+                        fmt.Println("Cannot find file")
+                        break
+                    }
+                    defer file.Close()
+
+                    scanner := bufio.NewScanner(file)
+                    imgstr := ":draw"
+                    for scanner.Scan() {
+                        line := string(scanner.Text())
+                        fmt.Println(line)
+                        imgstr += line
+                        //fmt.Fprintf(temp_conn, string(line[20]) + "\n")
+                        //fmt.Fprintf(temp_conn, "HEY\n")
+                    }
+
+                    fmt.Fprintf(temp_conn, imgstr + "\n")
+
+                    //fmt.Fprintf(temp_conn, "\n")
+                    if err := scanner.Err(); err != nil {
+                        fmt.Println("Error when reading file")
+                        break
+                    }
+                    //fmt.Fprintf(temp_conn, "drawing lmao\n")
+                } else {
+                    fmt.Fprintf(temp_conn, "<" + k + ">: " + cli_conns.active_message + "\n")
+                }
                 temp_conn.Close()
             }
         }
@@ -200,7 +240,7 @@ func main() {
     }
 
     port := os.Args[1]
-    cli_conns.inputs = make(map[string]net.Conn)
+    cli_conns.inputs = make(map[string]string)
     cli_conns.receivers = make(map[string]string)
     cli_conns.num_messages = 0
 
