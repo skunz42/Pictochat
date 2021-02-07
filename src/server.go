@@ -92,12 +92,12 @@ func handle_message(conn net.Conn) {
             fmt.Println("Hang?")
             buffer, err := bufio.NewReader(conn).ReadBytes('\n')
 
-            if err != nil {
+            if err != nil || string(buffer) == ":quit\n" {
                 fmt.Println("Goodbye,", user_connection.username)
-                uc := user_connection.username[:len(user_connection.username)-1]
+                //uc := user_connection.username[:len(user_connection.username)-1]
                 delete(cli_conns.inputs, user_connection.username)
-                delete(cli_conns.receivers, uc)
-                conn.Close()
+                //delete(cli_conns.receivers, uc)
+                //conn.Close()
                 return
             } else if string(buffer) == ":draw\n" {
                 mu.Lock()
@@ -122,6 +122,11 @@ func handle_message(conn net.Conn) {
                 cli_conns.num_messages += 1
                 cli_conns.active_message = ":quit" + user_connection.username
                 mu.Unlock()
+                fmt.Println("Goodbye,", user_connection.username)
+                //uc := user_connection.username[:len(user_connection.username)-1]
+                delete(cli_conns.inputs, user_connection.username)
+                //delete(cli_conns.receivers, uc)
+                return
             } else {
                 fmt.Println("Message Received:", string(buffer))
                 /*for k,v := range cli_conns.receivers {
@@ -141,7 +146,7 @@ func handle_message(conn net.Conn) {
         user_port := temp_split[3]
         user_both := user_ip+":"+user_port
         cli_conns.receivers[user_connection.username] = user_both[:len(user_both)-1]
-        conn.Close()
+        //conn.Close()
     }
 
 }
@@ -182,8 +187,9 @@ func start_client() {
                     os.Exit(1)
                 }
                 fmt.Fprintf(temp_conn, ":quit\n")
-                temp_conn.Close()
-                break
+                //temp_conn.Close()
+                //break
+                return
             }
             for k,v := range cli_conns.receivers {
                 temp_conn, err := net.Dial("tcp", v)
@@ -202,7 +208,7 @@ func start_client() {
                         fmt.Println("Cannot find file")
                         break
                     }
-                    defer file.Close()
+                    //defer file.Close()
 
                     scanner := bufio.NewScanner(file)
                     imgstr := ":draw"
@@ -225,7 +231,7 @@ func start_client() {
                 } else {
                     fmt.Fprintf(temp_conn, "<" + k + ">: " + cli_conns.active_message + "\n")
                 }
-                temp_conn.Close()
+                //temp_conn.Close()
             }
         }
         size = cli_conns.num_messages
